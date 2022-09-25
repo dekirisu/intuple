@@ -1,0 +1,19 @@
+[package]
+name = "intuple_derive"
+version = "0.1.0"
+edition = "2021"
+
+authors = ["Dekirisu <dekirisu@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Convert structs into/from tuples with field ignoring + derive for intuple"
+repository = "https://github.com/dekirisu/intuple/"
+keywords = ["tuple","struct","into","convert","ignore"]
+categories = ["rust-patterns"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "1.0"
+quote = "1.0"
+proc-macro2 = "1.0.43"

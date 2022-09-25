@@ -1,0 +1,21 @@
+[package]
+name = "intuple"
+version = "0.1.0"
+edition = "2021"
+
+authors = ["Dekirisu <dekirisu@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Convert structs into/from tuples - recursive, ignore fields, distinct traits"
+repository = "https://github.com/dekirisu/intuple/"
+keywords = ["tuple","struct","into","convert","recursive"]
+categories = ["rust-patterns"]
+
+[dependencies]
+# intuple_derive = "0.1.0"
+intuple_derive = {path = "./derive"}
+
+# [patch.crates-io]
+# intuple_derive = {path = "./derive"}
+
+[workspace]
+members = ["derive"]
