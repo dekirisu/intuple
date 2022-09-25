@@ -13,9 +13,9 @@ fn main(){
     /* -------------------------------------------------------------------------- */
     /* ----------------------------- struct -> tuple ---------------------------- */
     // std - struct from tuple
-    // let intostruct = Named::from((10,20,30,40,50,60));              println!("{:?}",intostruct);
+    let intostruct = Named::from((10,20,30,40,50,60));              println!("{:?}",intostruct);
     // std - tuple into struct
-    // let intostruct: Named = (10,20,30,40,50,60).into();             println!("{:?}",intostruct);
+    let intostruct: Named = (10,20,30,40,50,60).into();             println!("{:?}",intostruct);
     // intuple - struct from tuple
     let intostruct = Named::from_tuple((10,20,30,40,50,60));        println!("{:?}",intostruct);
     let intostruct = Named::fruple((10,20,30,40,50,60));            println!("{:?}",intostruct);
@@ -24,9 +24,9 @@ fn main(){
     let intostruct: Named = (10,20,30,40,50,60).intruct();          println!("{:?}",intostruct);
     /* ----------------------------- tuple -> struct ---------------------------- */
     // std - tuple from struct
-    // let intotuple: NamedIntuple = intostruct.clone().into();        println!("{:?}",intotuple);
+    let intotuple: NamedIntuple = intostruct.clone().into();        println!("{:?}",intotuple);
     // std - struct into tuple
-    // let intotuple = NamedIntuple::from(intostruct.clone());         println!("{:?}",intotuple);
+    let intotuple = NamedIntuple::from(intostruct.clone());         println!("{:?}",intotuple);
     // intuple - tuple from struct
     let intotuple = intostruct.clone().into_tuple();                println!("{:?}",intotuple);
     let intotuple = intostruct.clone().intuple();                   println!("{:?}",intotuple);
