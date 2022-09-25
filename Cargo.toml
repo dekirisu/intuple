@@ -11,11 +11,10 @@ keywords = ["tuple","struct","into","convert","recursive"]
 categories = ["rust-patterns"]
 
 [dependencies]
-# intuple_derive = "0.1.0"
-intuple_derive = {path = "./derive"}
+intuple_derive = "0.1.0"
 
-# [patch.crates-io]
-# intuple_derive = {path = "./derive"}
+[patch.crates-io]
+intuple_derive = {path = "./derive"}
 
 [workspace]
 members = ["derive"]
