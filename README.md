@@ -21,7 +21,7 @@ intuple = "0.1.0"
 ```rust 
 use intuple::*;
 ```
-🦚 multiple possibilities to convert - combine as you wish - whatever fits your use case:
+🦚 multiple ways to convert, combine as you wish - whatever fits your use case:
 ```rust 
 #[derive(Intuple)]
 struct Struct {a:u32, b:u32, c:u32}
