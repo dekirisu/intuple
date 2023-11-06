@@ -1,249 +1,220 @@
-/// Proc macro for untuple!  
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use proc_macro2::{Ident, Span};
+use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
 
-/* ------------------------------------ . ----------------------------------- */
+/* ---------------------------------- Core ---------------------------------- */
 
-fn intuple_attrs(attrs: &Vec<syn::Attribute>) -> Vec<&'static str>{
-    let mut names = vec![];
-    for aaa in attrs {
-        let ewr = aaa.path.get_ident();
-        let nme = ewr.as_ref().unwrap().to_string();
-        if &nme == "ignore" || &nme == "igno" {
-            names.push("ignore");
-        } else if &nme == "recursive" || &nme == "rcsv" {
-            names.push("recursive");
+    trait IntupleAttributes {
+        fn as_strings(&self) -> Vec<&'static str>;
+    }
+    impl IntupleAttributes for Vec<Attribute> {
+        fn as_strings(&self) -> Vec<&'static str> {
+            let mut names = vec![];
+            for aaa in self {
+                let ewr = aaa.meta.path().get_ident();
+                let nme = ewr.as_ref().unwrap().to_string();
+                if &nme == "ignore" || &nme == "igno" {
+                    names.push("ignore");
+                } else if &nme == "recursive" || &nme == "rcsv" {
+                    names.push("recursive");
+                }
+            }
+            names
         }
     }
-    names
-}
 
-fn intuple_ignoref(attrs: &Vec<syn::Attribute>) -> bool {
-    intuple_attrs(attrs).contains(&"ignore")
-}
-
-fn intuple_qthat(field: &syn::Field, ti: &mut usize) -> syn::__private::TokenStream2 {
-    let ty = field.ty.clone();
-    let mut qthat = quote!{#ty::default()};
-    if !intuple_ignoref(&field.attrs) {
-        let index = syn::Index::from(ti.clone());
-        qthat = quote!{item.#index};
-        *ti += 1;
+    trait IntupleField {
+        fn ident(&self) -> Ident;
+        fn is_ignored(&self) -> bool;
+        fn is_recursive(&self) -> bool;
+        fn not_ignored(&self) -> bool;
+        fn value_from_tuple_or_default(&self,index:&mut usize) -> TokenStream2;
     }
-    qthat
-}
+    impl IntupleField for Field {
+        fn ident(&self) -> Ident {
+            self.ident.as_ref().unwrap().clone()
+        }
+        fn is_ignored(&self) -> bool {
+            self.attrs.as_strings().contains(&"ignore")
+        }
+        fn is_recursive(&self) -> bool {
+            self.attrs.as_strings().contains(&"recursive")
+        }
+        fn not_ignored(&self) -> bool {
+            !self.is_ignored()
+        }
+        fn value_from_tuple_or_default(&self,index:&mut usize) -> TokenStream2 {
+            if self.not_ignored() {
+                let id = Index::from(*index);
+                *index += 1;
+                quote!{tuple.#id}
+            } else {
+                let ty = self.ty.clone();
+                quote!{#ty::default()}
+            }
+        }
+    }
 
-/* ----------------------------- Into/From Only ----------------------------- */
+    trait IntupleFieldVec {
+        fn intuple_types (&self,is_trait:bool) -> TokenStream2;
+        fn intuple_blocks <T:ToTokens,F:Fn(usize,&Field)->T> (&self,tup_offset:usize,func:F) -> (TokenStream2,TokenStream2);
+    }
+    impl IntupleFieldVec for Punctuated<Field,Comma> {
+        fn intuple_types (&self,is_trait:bool) -> TokenStream2 {
+            let mut out = quote!{};
+            for field in self {
+                if field.not_ignored() {
+                    let ty = field.ty.clone();
+                    out = match field.is_recursive() {
+                        true  => match is_trait {
+                            true => quote!(#out <#ty as Intuple>::Intuple,),
+                            false => {
+                                let typeid = Ident::new(&(ty.into_token_stream().to_string()+"Intuple"), Span::call_site());
+                                quote!(#out #typeid,)
+                            },
+                        },
+                        false => quote!{#out #ty,},
+                    };
+                }
+            }
+            out
+        }
+        fn intuple_blocks <T:ToTokens,F:Fn(usize,&Field)->T> (&self,mut tup_offset:usize,func:F) -> (TokenStream2,TokenStream2){
+            let mut dataty_tuple = quote!{};
+            let mut tuple_dataty = quote!{};
+            for (position,field) in self.iter().enumerate() {
+                // Tuple Index
+                let tupid = if field.not_ignored() {
+                    let out:Index = tup_offset.into();
+                    tup_offset += 1;
+                    Some(out)
+                } else {None};
+                // Struct -> Tuple
+                let fname = func(position,field);
+                if field.not_ignored() {
+                    dataty_tuple = match field.is_recursive() {
+                        true => quote!{#dataty_tuple dataty.#fname.into(),},
+                        false => quote!{#dataty_tuple dataty.#fname,},
+                    };
+                }
+                // Tuple -> Struct
+                let value = match tupid {
+                    Some(id) => match field.is_recursive() {
+                        true => quote!{tuple.#id.into()},
+                        false => quote!{tuple.#id},
+                    },
+                    None => {
+                        let ftype = field.ty.clone();
+                        quote!{#ftype::default()}
+                    },
+                };
+                tuple_dataty = quote!{#tuple_dataty #fname: #value,};
+            }
+            (dataty_tuple,tuple_dataty)
+        }
+    }
 
-#[proc_macro_derive(IntupleLite, attributes(igno))]
-pub fn intuple_from_macro_derive(input: TokenStream) -> TokenStream {
-    let ast = syn::parse(input).unwrap();
-    impl_intuple_from_macro(&ast)
-}
+/* ------------------------------ Intuple Lite ------------------------------ */
 
-fn impl_intuple_from_macro(ast: &syn::DeriveInput) -> TokenStream {
-    if let syn::Data::Struct(strct) = &ast.data {
+    #[proc_macro_derive(IntupleLite, attributes(recursive,igno,rcsv))]
+    pub fn intuple_from_macro_derive(input: TokenStream) -> TokenStream {
+        let ast = syn::parse(input).unwrap();
+        impl_intuple_from_macro(&ast)
+    }
 
+    fn impl_intuple_from_macro(ast: &syn::DeriveInput) -> TokenStream {
         let vis = &ast.vis;
         let name = &ast.ident;
         let (impl_generics, ty_generics, where_clause) = &ast.generics.split_for_impl();
-    
-        let mut types       = vec![];
-        #[allow(unused_assignments)] 
-        let mut qout_from   = quote!{};
-        #[allow(unused_assignments)] 
-        let mut qout_into   = quote!{};
-
-        let mut ti = 0;
-
-        match &strct.fields {
-            /* ---------------------------------- Named --------------------------------- */
-            syn::Fields::Named(fields) => {
-                //
-                let (mut idents, mut qubuild) = (vec![],quote!{});
-                //
-                for field in &fields.named {
-                    //
-                    let ident = field.ident.as_ref().unwrap().clone();
-                    let qthat = intuple_qthat(&field, &mut ti);
-                    qubuild = quote!{#qubuild #ident: #qthat,};
-                    //
-                    if !intuple_ignoref(&field.attrs) {
-                        idents.push(ident);
-                        types.push(field.ty.clone());
+        match &ast.data {
+            Data::Struct(strct) => {
+                let (qout_from,qout_into,types) = match &strct.fields {
+                    /* ---------------------------------- Named --------------------------------- */
+                    Fields::Named(fields) => {
+                        let (dataty_tuple,tuple_dataty) = fields.named.intuple_blocks(0,|_,field| field.ident());
+                        (quote!{Self{#tuple_dataty}},
+                        quote!{(#dataty_tuple)},
+                        fields.named.intuple_types(false))
+                    },
+                    /* --------------------------------- Unnamed -------------------------------- */
+                    syn::Fields::Unnamed(fields) => {
+                        let (dataty_tuple,tuple_dataty) = fields.unnamed.intuple_blocks(0,|position,_| Index::from(position));
+                        (quote!{Self{#tuple_dataty}},
+                        quote!{(#dataty_tuple)},
+                        fields.unnamed.intuple_types(false))
                     }
-                }
-                qout_from = quote!{ Self {#qubuild} };
-                qout_into = quote!{ (#(item.#idents),*) };
-            },
-            /* --------------------------------- Unnamed -------------------------------- */
-            syn::Fields::Unnamed(fields) => {
-                //
-                let (mut idents, mut qubuild) = (vec![],quote!{});
-                let mut i = 0;
-                //
-                for field in &fields.unnamed {
-                    //
-                    let ident = syn::Index::from(i);
-                    let qthat = intuple_qthat(&field, &mut ti);
-                    qubuild = quote!{#qubuild #qthat,};
-                    //
-                    if !intuple_ignoref(&field.attrs) {
-                        idents.push(ident);
-                        types.push(field.ty.clone());
+                    /* ---------------------------------- Unit ---------------------------------- */
+                    syn::Fields::Unit => (quote!{Self},quote!{()},quote![])
+                };
+                let intuple = quote!{(#types)};
+                let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
+                quote! {
+                    impl #impl_generics From<#intuple> for #name #ty_generics #where_clause {
+                        fn from(tuple: #intuple) -> Self { #qout_from }
                     }
-                    //
-                    i += 1;
-                }
-                qout_from = quote!{ Self (#qubuild) };
-                qout_into = quote!{ (#(item.#idents),*) };
-            }
-            /* ---------------------------------- Unit ---------------------------------- */
-            syn::Fields::Unit => {
-                qout_from = quote!{ Self };
-                qout_into = quote!{ () };
+                    impl #impl_generics From<#name #ty_generics> for #intuple #where_clause {
+                        fn from(dataty: #name #ty_generics) -> Self { #qout_into }
+                    }
+                    #vis type #typeid #ty_generics = #intuple;
+                }.into()
             },
+            Data::Union(_) => panic!("Unions not supported!"),
+            Data::Enum(_) => panic!("Enums not supported!"),
         }
-        //
-        let intuple = quote!{(#(#types),*)};
-        let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
-        quote! {
-            impl #impl_generics From<#intuple> for #name #ty_generics #where_clause {
-                fn from(item: #intuple) -> Self { #qout_from }
-            }
-            impl #impl_generics From<#name #ty_generics> for #intuple #where_clause {
-                fn from(item: #name #ty_generics) -> Self { #qout_into }
-            }
-            #vis type #typeid #ty_generics = #intuple;
-        }.into()
-        //
-    } else {panic!("Not a Struct!")}
-
-}
+    }
 
 /* --------------------------------- Intuple -------------------------------- */
 
-#[proc_macro_derive(Intuple, attributes(recursive,igno,rcsv))]
-pub fn intuple_macro_derive(input: TokenStream) -> TokenStream {
-    let ast = syn::parse(input).unwrap();
-    impl_intuple_macro(&ast)
-}
+    #[proc_macro_derive(Intuple, attributes(recursive,igno,rcsv))]
+    pub fn intuple_macro_derive(input: TokenStream) -> TokenStream {
+        let ast = syn::parse(input).unwrap();
+        impl_intuple_macro(&ast)
+    }
 
-fn impl_intuple_macro(ast: &syn::DeriveInput) -> TokenStream {
-    if let syn::Data::Struct(strct) = &ast.data {
-
+    fn impl_intuple_macro(ast: &syn::DeriveInput) -> TokenStream {
         let vis = &ast.vis;
         let name = &ast.ident;
         let (impl_generics, ty_generics, where_clause) = &ast.generics.split_for_impl();
-    
-        let mut qubuild_t = quote!{};
-        #[allow(unused_assignments)] 
-        let mut qout_from = quote!{};
-        #[allow(unused_assignments)] 
-        let mut qout_into = quote!{};
-
-        let mut ti = 0;
-
-        match &strct.fields {
-            /* ---------------------------------- Named --------------------------------- */
-            syn::Fields::Named(fields) => {
-                //
-                let (mut qubuild_f, mut qubuild_i) = (quote!{}, quote!{});
-                //
-                for field in &fields.named {
-                    //
-                    let ident = field.ident.as_ref().unwrap().clone();
-                    let mut qthat = intuple_qthat(&field, &mut ti);
-                    //
-                    if intuple_attrs(&field.attrs).contains(&"recursive") {
-                        let ty = field.ty.clone();
-                        let index = syn::Index::from(ti.clone()-1);
-                        qthat = quote!{ #ty::from_tuple(item.#index) };
+        match &ast.data {
+            Data::Struct(strct) => {
+                let (qout_from,qout_into,types) = match &strct.fields {
+                    /* ---------------------------------- Named --------------------------------- */
+                    Fields::Named(fields) => {
+                        let (dataty_tuple,tuple_dataty) = fields.named.intuple_blocks(0,|_,field| field.ident());
+                        (quote!{Self{#tuple_dataty}},
+                        quote!{(#dataty_tuple)},
+                        fields.named.intuple_types(true))
+                    },
+                    /* --------------------------------- Unnamed -------------------------------- */
+                    syn::Fields::Unnamed(fields) => {
+                        let (dataty_tuple,tuple_dataty) = fields.unnamed.intuple_blocks(0,|position,_| Index::from(position));
+                        (quote!{Self{#tuple_dataty}},
+                        quote!{(#dataty_tuple)},
+                        fields.unnamed.intuple_types(true))
                     }
-                    //
-                    qubuild_f = quote!{#qubuild_f #ident: #qthat,};
-                    //
-                    if !intuple_ignoref(&field.attrs) {
-                        let ty = field.ty.clone();
-                        if intuple_attrs(&field.attrs).contains(&"recursive") {
-                            qubuild_t = quote!{ #qubuild_t <#ty as IntupleStruct>::Intuple, };
-                            qubuild_i = quote!{ #qubuild_i self.#ident.into_tuple(), };
-                        } else {
-                            qubuild_t = quote!{ #qubuild_t #ty, };
-                            qubuild_i = quote!{ #qubuild_i self.#ident, };
-                        }
+                    /* ---------------------------------- Unit ---------------------------------- */
+                    syn::Fields::Unit => (quote!{Self},quote!{()},quote![])
+                };
+                let intuple = quote!{(#types)};
+                let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
+                quote! {
+                    impl #impl_generics Intuple for #name #ty_generics #where_clause {
+                        type Intuple = #intuple;
+                        fn from_tuple(item: Self::Intuple) -> Self{item.into()}
+                        fn into_tuple(self) -> Self::Intuple {self.into()}
+                        fn intuple(self) -> Self::Intuple {self.into()}
                     }
-                }
-                qout_from = quote!{ Self {#qubuild_f} };
-                qout_into = quote!{ (#qubuild_i) };
+                    impl #impl_generics From<#intuple> for #name #ty_generics #where_clause {
+                        fn from(tuple: #intuple) -> Self { #qout_from }
+                    }
+                    impl #impl_generics From<#name #ty_generics> for #intuple #where_clause {
+                        fn from(dataty: #name #ty_generics) -> Self { #qout_into }
+                    }
+                    #vis type #typeid #ty_generics = #intuple;
+                }.into()
             },
-            /* --------------------------------- Unnamed -------------------------------- */
-            syn::Fields::Unnamed(fields) => {
-                //
-                let (mut qubuild_f, mut qubuild_i) = (quote!{}, quote!{});
-                let mut i = 0;
-                //
-                for field in &fields.unnamed {
-                    //
-                    let ident = syn::Index::from(i);
-                    let mut qthat = intuple_qthat(&field, &mut ti);
-                    //
-                    if intuple_attrs(&field.attrs).contains(&"recursive") {
-                        let ty = field.ty.clone();
-                        let index = syn::Index::from(ti.clone()-1);
-                        qthat = quote!{ #ty::from_tuple(item.#index) };
-                    }
-                    //
-                    qubuild_f = quote!{#qubuild_f #qthat,};
-                    //
-                    if !intuple_ignoref(&field.attrs) {
-                        let ty = field.ty.clone();
-                        if intuple_attrs(&field.attrs).contains(&"recursive") {
-                            qubuild_t = quote!{ #qubuild_t <#ty as IntupleStruct>::Intuple, };
-                            qubuild_i = quote!{ #qubuild_i self.#ident.into_tuple(), };
-                        } else {
-                            qubuild_t = quote!{ #qubuild_t #ty, };
-                            qubuild_i = quote!{ #qubuild_i self.#ident, };
-                        }
-                    }
-                    //
-                    i += 1;
-                }
-                qout_from = quote!{ Self (#qubuild_f) };
-                qout_into = quote!{ (#qubuild_i) };
-            }
-            /* ---------------------------------- Unit ---------------------------------- */
-            syn::Fields::Unit => {
-                qout_from = quote!{ Self };
-                qout_into = quote!{ () };
-            },
+            Data::Union(_) => panic!("Unions not supported!"),
+            Data::Enum(_) => panic!("Enums not supported!"),
         }
-        //
-        let intuple = quote!{(#qubuild_t)};
-        let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
-        quote! {
-            impl #impl_generics IntupleStruct for #name #ty_generics #where_clause {
-                type Intuple = #intuple;
-                fn from_tuple(item: Self::Intuple) -> Self{
-                    #qout_from  
-                }
-                fn into_tuple(self) -> Self::Intuple {
-                    #qout_into
-                }
-            }
-            impl #impl_generics From<#intuple> for #name #ty_generics #where_clause {
-                fn from(item: #intuple) -> Self { Self::from_tuple(item) }
-            }
-            impl #impl_generics From<#name #ty_generics> for #intuple #where_clause {
-                fn from(item: #name #ty_generics) -> Self { item.into_tuple() }
-            }
-            impl #impl_generics Intuple<#name #ty_generics> for #intuple #where_clause {
-                fn into_struct(self)->#name #ty_generics { self.into() }
-            }
-            #vis type #typeid #ty_generics = <#name #ty_generics as IntupleStruct>::Intuple;
-        }.into()
-        //
-    } else {panic!("Not a Struct!")}
-
-}
+    }
