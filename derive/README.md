@@ -14,19 +14,20 @@
 ## Easy conversion between structs and tuples
 Mainly developed as derive macro for [intuple](https://crates.io/crates/intuple), but can also be used as standalone library with less features.
 ### `IntupleLite` derive features:<br>
-🐍 convert structs into/from tuples - via std `From<_>` and `Into<_>`<br>
+🐍 convert structs into/from tuples - via std `From<..>` and `Into<..>`<br>
 🦥 ignore specific fields - via `#[igno]`<br>
-🦊 easy access to the resulting tuple type of the struct
+🦆 recursion - via `#[rcsv]`/`#[recursive]` on a field <br>
+🦊 easy access to the resulting tuple type of the struct<br>
 
 ### See [intuple](https://crates.io/crates/intuple) ([crates.io](https://crates.io/crates/intuple)/[github](https://github.com/dekirisu/intuple)) if you also need:<br>
-🦆 recursion<br>
-🦝 distinct traits with own functions
+🦝 `Intuple` trait, making the tuple type accessible via `<AStruct as Intuple>::Intuple`<br>
+🐺 and implementing `.from_tuple(..)` and `.into_tuple()`/`.intuple()` methods
 
 ## Standalone Usage
 🐠 add **intuple_derive** to the dependencies in the `Cargo.toml`:
 ```toml
 [dependencies]
-intuple_derive = "0.1.0"
+intuple_derive = "0.2.0"
 ```
 🦀 use/import everything into rust:
 ```rust 
@@ -70,9 +71,20 @@ fn main(){
     // => (2, 1)
 }
 ```
-## More Features
-🦊 For more features, use **intuple** ([crates.io](https://crates.io/crates/intuple)/[github](https://github.com/dekirisu/intuple))
-
+## Recursion
+🦊 convert recursively with `#[recursive]` or `#[rcsv]`
+```rust 
+#[derive(IntupleLite)]
+struct Struct {a:u32, b:u32, c:u32}
+#[derive(IntupleLite)]
+struct Recursive {a:u32, #[recursive] b:Struct, c:u32}
+fn main(){
+    let rcsv: Recursive = (9,(3,2,1),8).into(); 
+    // => Recursive{a:9, b:Struct{a:3,b:2,c:1}, c:8}
+    let tuple: RecursiveIntuple = rcsv.into(); 
+    // => (9,(3,2,1),8)
+}
+```
 ---
 ### License
 <sup>

@@ -11,11 +11,18 @@
     </a>
 </p>
 
-## Convert structs into/from tuples
+## Features
+🐍 convert structs into/from tuples - via std `From<..>` and `Into<..>`<br>
+🦥 ignore specific fields - via `#[igno]`<br>
+🦆 recursion - via `#[rcsv]`/`#[recursive]` per field <br>
+🦊 easy access to the resulting tuple type of the struct<br>
+🦝 `Intuple` trait for easier conversion and dynamic handling<br>
+
+## Usage
 🐠 add **intuple** to the dependencies in the `Cargo.toml`:
 ```toml
 [dependencies]
-intuple = "0.1.0"
+intuple = "0.2.0"
 ```
 🦀 use/import everything into rust:
 ```rust 
@@ -34,11 +41,9 @@ fn main(){
         let strct = Struct::from((3,2,1));
         let tuple: (u32, u32, u32) = strct.into();
     // OR intuple traits
-        let strct: Struct = (3,2,1).into_struct();
-        let tuple = StructIntuple::from_struct(strct);
-        // OR
         let strct = Struct::from_tuple((3,2,1));
         let tuple = strct.into_tuple();
+        let tuple = strct.intuple();
 }
 ```
 ## Tuple Type
@@ -50,7 +55,7 @@ fn main(){
     // easiest: through {StructName}Intuple
     let tup: NiceIntuple = (3,2,1);
     // is ALWAYS equal to
-    let tup: <Nice as IntupleStruct>::Intuple = (3,2,1);
+    let tup: <Nice as Intuple>::Intuple = (3,2,1);
     // is IN THIS CASE equal to
     let tup: (u32, u32, u32) = (3,2,1);
 }
