@@ -1,6 +1,6 @@
 [package]
 name = "intuple"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 authors = ["Dekirisu <dekirisu@gmail.com>"]
@@ -11,10 +11,7 @@ keywords = ["tuple","struct","into","convert","recursive"]
 categories = ["rust-patterns"]
 
 [dependencies]
-intuple_derive = "0.1.0"
-
-[patch.crates-io]
-intuple_derive = {path = "./derive"}
+intuple_derive = {version="0.2.0", path="./derive"}
 
 [workspace]
 members = ["derive"]
