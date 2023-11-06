@@ -115,6 +115,34 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         }
     }
 
+
+    trait IntupleFields {
+        fn intuple (&self,is_trait:bool) -> (TokenStream2,TokenStream2,TokenStream2);
+    }
+    impl IntupleFields for Fields {
+        fn intuple (&self,is_trait:bool) -> (TokenStream2,TokenStream2,TokenStream2) {
+            match &self {
+                /* ---------------------------------- Named --------------------------------- */
+                Fields::Named(fields) => {
+                    let (dataty_tuple,tuple_dataty) = fields.named.intuple_blocks(0,|_,field| field.ident());
+                    (quote!{{#tuple_dataty}},
+                    quote!{(#dataty_tuple)},
+                    fields.named.intuple_types(is_trait))
+                },
+                /* --------------------------------- Unnamed -------------------------------- */
+                syn::Fields::Unnamed(fields) => {
+                    let (dataty_tuple,tuple_dataty) = fields.unnamed.intuple_blocks(0,|position,_| Index::from(position));
+                    (quote!{{#tuple_dataty}},
+                    quote!{(#dataty_tuple)},
+                    fields.unnamed.intuple_types(is_trait))
+                }
+                /* ---------------------------------- Unit ---------------------------------- */
+                syn::Fields::Unit => (quote!{},quote!{()},quote!{})
+            }
+        }
+    }
+
+
 /* ------------------------------ Intuple Lite ------------------------------ */
 
     #[proc_macro_derive(IntupleLite, attributes(recursive,igno,rcsv))]
@@ -129,24 +157,8 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         let (impl_generics, ty_generics, where_clause) = &ast.generics.split_for_impl();
         match &ast.data {
             Data::Struct(strct) => {
-                let (qout_from,qout_into,types) = match &strct.fields {
-                    /* ---------------------------------- Named --------------------------------- */
-                    Fields::Named(fields) => {
-                        let (dataty_tuple,tuple_dataty) = fields.named.intuple_blocks(0,|_,field| field.ident());
-                        (quote!{Self{#tuple_dataty}},
-                        quote!{(#dataty_tuple)},
-                        fields.named.intuple_types(false))
-                    },
-                    /* --------------------------------- Unnamed -------------------------------- */
-                    syn::Fields::Unnamed(fields) => {
-                        let (dataty_tuple,tuple_dataty) = fields.unnamed.intuple_blocks(0,|position,_| Index::from(position));
-                        (quote!{Self{#tuple_dataty}},
-                        quote!{(#dataty_tuple)},
-                        fields.unnamed.intuple_types(false))
-                    }
-                    /* ---------------------------------- Unit ---------------------------------- */
-                    syn::Fields::Unit => (quote!{Self},quote!{()},quote![])
-                };
+                let (qout_from,qout_into,types) = strct.fields.intuple(false);
+                let qout_from = quote!{Self #qout_from};
                 let intuple = quote!{(#types)};
                 let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
                 quote! {
@@ -159,8 +171,8 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                     #vis type #typeid #ty_generics = #intuple;
                 }.into()
             },
-            Data::Union(_) => panic!("Unions not supported!"),
             Data::Enum(_) => panic!("Enums not supported!"),
+            Data::Union(_) => panic!("Unions not supported!"),
         }
     }
 
@@ -178,24 +190,8 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         let (impl_generics, ty_generics, where_clause) = &ast.generics.split_for_impl();
         match &ast.data {
             Data::Struct(strct) => {
-                let (qout_from,qout_into,types) = match &strct.fields {
-                    /* ---------------------------------- Named --------------------------------- */
-                    Fields::Named(fields) => {
-                        let (dataty_tuple,tuple_dataty) = fields.named.intuple_blocks(0,|_,field| field.ident());
-                        (quote!{Self{#tuple_dataty}},
-                        quote!{(#dataty_tuple)},
-                        fields.named.intuple_types(true))
-                    },
-                    /* --------------------------------- Unnamed -------------------------------- */
-                    syn::Fields::Unnamed(fields) => {
-                        let (dataty_tuple,tuple_dataty) = fields.unnamed.intuple_blocks(0,|position,_| Index::from(position));
-                        (quote!{Self{#tuple_dataty}},
-                        quote!{(#dataty_tuple)},
-                        fields.unnamed.intuple_types(true))
-                    }
-                    /* ---------------------------------- Unit ---------------------------------- */
-                    syn::Fields::Unit => (quote!{Self},quote!{()},quote![])
-                };
+                let (qout_from,qout_into,types) = strct.fields.intuple(true);
+                let qout_from = quote!{Self #qout_from};
                 let intuple = quote!{(#types)};
                 let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
                 quote! {
