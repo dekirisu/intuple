@@ -5,6 +5,10 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
 
 /* ---------------------------------- Core ---------------------------------- */
 
+    macro_rules! ident {($($arg:tt)*) => {{
+        Ident::new(&format!($($arg)*), Span::call_site())
+    }}}
+
     trait IntupleAttributes {
         fn as_strings(&self) -> Vec<&'static str>;
     }
@@ -70,7 +74,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                         true  => match is_trait {
                             true => quote!(#out <#ty as Intuple>::Intuple,),
                             false => {
-                                let typeid = Ident::new(&(ty.into_token_stream().to_string()+"Intuple"), Span::call_site());
+                                let typeid = ident!("{}Intuple",ty.into_token_stream());
                                 quote!(#out #typeid,)
                             },
                         },
@@ -115,7 +119,6 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         }
     }
 
-
     trait IntupleFields {
         fn intuple (&self,is_trait:bool) -> (TokenStream2,TokenStream2,TokenStream2);
     }
@@ -142,7 +145,6 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         }
     }
 
-
 /* ------------------------------ Intuple Lite ------------------------------ */
 
     #[proc_macro_derive(IntupleLite, attributes(recursive,igno,rcsv))]
@@ -160,7 +162,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 let (qout_from,qout_into,types) = strct.fields.intuple(false);
                 let qout_from = quote!{Self #qout_from};
                 let intuple = quote!{(#types)};
-                let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
+                let typeid = ident!("{}Intuple",name);
                 quote! {
                     impl #impl_generics From<#intuple> for #name #ty_generics #where_clause {
                         fn from(tuple: #intuple) -> Self { #qout_from }
@@ -193,7 +195,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 let (qout_from,qout_into,types) = strct.fields.intuple(true);
                 let qout_from = quote!{Self #qout_from};
                 let intuple = quote!{(#types)};
-                let typeid = Ident::new(&(name.to_string()+"Intuple"), Span::call_site());
+                let typeid = ident!("{}Intuple",name);
                 quote! {
                     impl #impl_generics Intuple for #name #ty_generics #where_clause {
                         type Intuple = #intuple;
