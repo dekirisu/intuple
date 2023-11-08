@@ -47,7 +47,6 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
 
     trait IntupleField {
         fn ident(&self) -> Ident;
-        fn is_ignored(&self) -> bool;
         fn is_recursive(&self) -> bool;
         fn not_ignored(&self) -> bool;
         fn value_from_tuple_or_default(&self,index:&mut usize) -> TokenStream2;
@@ -56,14 +55,11 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         fn ident(&self) -> Ident {
             self.ident.as_ref().unwrap().clone()
         }
-        fn is_ignored(&self) -> bool {
-            self.attrs.as_strings().contains(&"ignore")
-        }
         fn is_recursive(&self) -> bool {
             self.attrs.as_strings().contains(&"recursive")
         }
         fn not_ignored(&self) -> bool {
-            !self.is_ignored()
+            !self.attrs.as_strings().contains(&"ignore")
         }
         fn value_from_tuple_or_default(&self,index:&mut usize) -> TokenStream2 {
             if self.not_ignored() {
