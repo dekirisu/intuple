@@ -15,12 +15,11 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
     impl IntupleAttributes for Vec<Attribute> {
         fn as_strings(&self) -> Vec<&'static str> {
             let mut names = vec![];
-            for aaa in self {
-                let ewr = aaa.meta.path().get_ident();
-                let nme = ewr.as_ref().unwrap().to_string();
-                if &nme == "ignore" || &nme == "igno" {
+            for attr in self {
+                let path = attr.meta.path();
+                if path.is_ident("ignore") || path.is_ident("igno") {
                     names.push("ignore");
-                } else if &nme == "recursive" || &nme == "rcsv" {
+                } else if path.is_ident("recursive") || path.is_ident("rcsv") {
                     names.push("recursive");
                 }
             }
@@ -147,7 +146,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
 
 /* ------------------------------ Intuple Lite ------------------------------ */
 
-    #[proc_macro_derive(IntupleLite, attributes(recursive,igno,rcsv))]
+    #[proc_macro_derive(IntupleLite, attributes(recursive,igno,rcsv,intuple))]
     pub fn intuple_from_macro_derive(input: TokenStream) -> TokenStream {
         let ast = syn::parse(input).unwrap();
         impl_intuple_from_macro(&ast)
@@ -180,7 +179,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
 
 /* --------------------------------- Intuple -------------------------------- */
 
-    #[proc_macro_derive(Intuple, attributes(recursive,igno,rcsv))]
+    #[proc_macro_derive(Intuple, attributes(recursive,igno,rcsv,intuple))]
     pub fn intuple_macro_derive(input: TokenStream) -> TokenStream {
         let ast = syn::parse(input).unwrap();
         impl_intuple_macro(&ast)
