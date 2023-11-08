@@ -11,7 +11,7 @@ struct Named{a:u32, #[igno] b:u32, c:u32}
 struct RecursiveA{a:u32, #[rcsv] b:Unnamed, c:Unnamed}
 
 #[derive(Intuple,Debug)]
-struct RecursiveB(u32, #[rcsv] RecursiveA, RecursiveA);
+struct RecursiveB(u32, #[intuple(rcsv)] RecursiveA, RecursiveA);
 
 fn main(){
 

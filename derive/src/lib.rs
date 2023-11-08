@@ -22,6 +22,17 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 } else if path.is_ident("recursive") || path.is_ident("rcsv") {
                     names.push("recursive");
                 }
+                if path.is_ident("intuple") {
+                    attr.parse_nested_meta(|meta|{
+                        let path = meta.path;
+                        if path.is_ident("ignore") || path.is_ident("igno") {
+                            names.push("ignore");
+                        } else if path.is_ident("recursive") || path.is_ident("rcsv") {
+                            names.push("recursive");
+                        }
+                        Ok(())
+                    }).unwrap();
+                }
             }
             names
         }
