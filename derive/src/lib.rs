@@ -9,6 +9,19 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         Ident::new(&format!($($arg)*), Span::call_site())
     }}}
 
+    trait IntuplePath {
+        fn get_option (&self) -> Option<&'static str>;
+    }
+    impl IntuplePath for Path {
+        fn get_option (&self) -> Option<&'static str> {
+            if self.is_ident("ignore") || self.is_ident("igno") {
+                Some("ignore")
+            } else if self.is_ident("recursive") || self.is_ident("rcsv") {
+                Some("recursive")
+            } else {None}
+        }
+    }
+
     trait IntupleAttributes {
         fn as_strings(&self) -> Vec<&'static str>;
     }
@@ -16,19 +29,13 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         fn as_strings(&self) -> Vec<&'static str> {
             let mut names = vec![];
             for attr in self {
-                let path = attr.meta.path();
-                if path.is_ident("ignore") || path.is_ident("igno") {
-                    names.push("ignore");
-                } else if path.is_ident("recursive") || path.is_ident("rcsv") {
-                    names.push("recursive");
+                if let Some(path) = attr.meta.path().get_option() {
+                    names.push(path);
                 }
-                if path.is_ident("intuple") {
+                if attr.meta.path().is_ident("intuple") {
                     attr.parse_nested_meta(|meta|{
-                        let path = meta.path;
-                        if path.is_ident("ignore") || path.is_ident("igno") {
-                            names.push("ignore");
-                        } else if path.is_ident("recursive") || path.is_ident("rcsv") {
-                            names.push("recursive");
+                        if let Some(path) = meta.path.get_option() {
+                            names.push(path);
                         }
                         Ok(())
                     }).unwrap();
