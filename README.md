@@ -12,17 +12,15 @@
 </p>
 
 ## Features
-🐍 convert structs into/from tuples - via std `From<..>` and `Into<..>`<br>
-🦥 ignore specific fields - via `#[igno]`<br>
-🦆 recursion - via `#[rcsv]`/`#[recursive]` per field <br>
-🦊 easy access to the resulting tuple type of the struct<br>
-🦝 `Intuple` trait for easier conversion and dynamic handling<br>
-
+🐍 convert structs into tuples and back<br>
+🦢 get a tuple full of (mut) references of struct fields<br>
+🦥 ignore specific fields <br>
+🦆 do it all recursive
 ## Usage
 🐠 add **intuple** to the dependencies in the `Cargo.toml`:
 ```toml
 [dependencies]
-intuple = "0.2.0"
+intuple = "0.2"
 ```
 🦀 use/import everything into rust:
 ```rust 
@@ -35,33 +33,38 @@ struct Struct {a:u32, b:u32, c:u32}
 
 fn main(){
     // use std traits
-        let strct: Struct = (3,2,1).into();
-        let tuple = <(u32, u32, u32)>::from(strct);
-        // OR
-        let strct = Struct::from((3,2,1));
-        let tuple: (u32, u32, u32) = strct.into();
-    // OR intuple traits
-        let strct = Struct::from_tuple((3,2,1));
-        let tuple = strct.into_tuple();
-        let tuple = strct.intuple();
+    let strct: Struct = (3,2,1).into();
+    let tuple = <(u32, u32, u32)>::from(strct);
+    let strct = Struct::from((3,2,1));
+    let tuple: (u32, u32, u32) = strct.into();
+    // OR intuple trait
+    let strct = Struct::from_tuple((3,2,1));
+    let tuple = strct.into_tuple(); // or strct.intuple()
+    // references
+    let strct = Struct::from_tuple((3,2,1));    
+    let tupref = strct.as_tuple_ref(); // (&u32,&u32,&u32)
+    let tupref = strct.as_tuple_ref_mut(); // (&mut u32,&mut u32,&mut u32)
 }
 ```
 ## Tuple Type
-🦊 access the resulting tuple type of a struct easily:
+🦊 access the resulting tuple types through the qualified path:
 ```rust 
 #[derive(Intuple)]
 struct Nice {a:u32, b:u32, c:u32}
 fn main(){
-    // easiest: through {StructName}Intuple
-    let tup: NiceIntuple = (3,2,1);
-    // is ALWAYS equal to
-    let tup: <Nice as Intuple>::Intuple = (3,2,1);
-    // is IN THIS CASE equal to
-    let tup: (u32, u32, u32) = (3,2,1);
+    let tup: <Nice as Intuple>::Tuple = (3,2,1);
+    let tup: (u32, u32, u32) = (3,2,1); // <- same as above
+    // reference tuple types
+    let tup: <Nice as IntupleRef>::Tuple = (&3,&2,&1);
+    let tup: (&u32, &u32, &u32) = (&3,&2,&1); // <- same as above
+    // mut reference tuple types
+    let tup: <Nice as IntupleRef>::TupleMut = (&mut 3,&mut 2,&mut 1);
+    let tup: (&mut u32, &mut u32, &mut u32) = (&mut 3,&mut 2,&mut 1); // <- same as above
+
 }
 ```
 ## Ignoring
-🦥 ignore specific fields with `#[igno]`<br>
+🦥 ignore specific fields with `#[igno]`, `#[ignore]`, `#[intuple(igno)]` or `#[intuple(ignore)]`<br>
 🐼 ignored fields need/use [Default](https://doc.rust-lang.org/std/default/trait.Default.html) while converting to a struct
 ```rust 
 #[derive(Intuple)]
@@ -74,7 +77,7 @@ fn main(){
 }
 ```
 ## Recursion
-🦊 convert recursively with `#[recursive]` or `#[rcsv]` <br>
+🦊 convert recursively with `#[recursive]`,`#[rcsv]`, `#[intuple(rcsv)]` or `#[intuple(recursive)]` <br>
 🐼 recursive fields need to derive `Intuple`
 ```rust 
 #[derive(Intuple)]
@@ -88,7 +91,18 @@ fn main(){
     // => (9,(3,2,1),8)
 }
 ```
-
+🦆 recursion also works on with `.as_tuple_ref()` amd `as_tuple_ref_mut()`
+```rust 
+#[derive(Intuple)]
+struct Struct {a:u32, b:u32, c:u32}
+#[derive(Intuple)]
+struct Recursive {a:u32, #[recursive] b:Struct, c:u32}
+fn main(){
+    let rcsv = Recursive::from((9,(3,2,1),8)); 
+    let tuple = rcsv.as_tuple_ref(); 
+    // => (&9,(&3,&2,&1),&8)
+}
+```
 ## More Information
 <a href="CHANGELOG.md">🦎 Changelog</a><br>
 [🐱 GitHub](https://github.com/dekirisu/intuple)<br>

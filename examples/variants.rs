@@ -20,12 +20,16 @@ fn main(){
     let intostruct = Named::from_tuple((10,20,30,40,50,60));        println!("{:?}",intostruct);
     /* ----------------------------- tuple -> struct ---------------------------- */
     // std - tuple from struct
-    let intotuple: NamedIntuple = intostruct.clone().into();        println!("{:?}",intotuple);
+    let intotuple: <Named as Intuple>::Tuple = intostruct.clone().into();        println!("{:?}",intotuple);
     // std - struct into tuple
-    let intotuple = NamedIntuple::from(intostruct.clone());         println!("{:?}",intotuple);
+    let intotuple = <Named as Intuple>::Tuple::from(intostruct.clone());         println!("{:?}",intotuple);
     // intuple - tuple from struct
     let intotuple = intostruct.clone().into_tuple();                println!("{:?}",intotuple);
     let intotuple = intostruct.clone().intuple();                   println!("{:?}",intotuple);
+    /* --------------------------- struct -> tuple refs-------------------------- */
+    let mut named = Named::from((10,20,30,40,50,60));
+    let reference= named.as_tuple_ref();            println!("{:?}",reference);
+    let reference_mut = named.as_tuple_ref_mut();   println!("{:?}",reference_mut);
 
     /* -------------------------------------------------------------------------- */
     /*                                   Unnamed                                  */
@@ -40,11 +44,15 @@ fn main(){
 
     /* ----------------------------- tuple -> struct ---------------------------- */
     // std - tuple from struct
-    let intotuple: UnnamedIntuple = intostruct.clone().into();      println!("{:?}",intotuple);
+    let intotuple: <Unnamed as Intuple>::Tuple = intostruct.clone().into();      println!("{:?}",intotuple);
     // std - struct into tuple
-    let intotuple = UnnamedIntuple::from(intostruct.clone());       println!("{:?}",intotuple);
+    let intotuple = <Unnamed as Intuple>::Tuple::from(intostruct.clone());       println!("{:?}",intotuple);
     // intuple - tuple from struct
     let intotuple = intostruct.clone().into_tuple();                println!("{:?}",intotuple);
     let intotuple = intostruct.clone().intuple();                   println!("{:?}",intotuple);
+    /* --------------------------- struct -> tuple refs-------------------------- */
+    let mut named = Unnamed::from((10,20,30,40,50,60));
+    let reference= named.as_tuple_ref();            println!("{:?}",reference);
+    let reference_mut = named.as_tuple_ref_mut();   println!("{:?}",reference_mut);
 
 }
