@@ -13,5 +13,8 @@ categories = ["rust-patterns"]
 [dependencies]
 intuple_derive = {version="0.2.0", path="./derive"}
 
+[dev-dependencies]
+serde_json = "1"
+
 [workspace]
 members = ["derive"]
