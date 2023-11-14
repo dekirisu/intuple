@@ -7,6 +7,7 @@
     - added `IntupleRef` trait with functions `as_tuple_ref()` and `as_tuple_ref_mut()`
     - reference tuples are affected by `#[ignore]`
     - reference tuples support recursion using `#[recursive]`
+- 🐤 added enum support
 # v0.1.0 (2022-09-26)
 * 🐣 first version: convert structs into/from tuples:
     - with field ignoring: `#[igno]`

@@ -5,9 +5,9 @@ edition = "2021"
 
 authors = ["Dekirisu <dekirisu@gmail.com>"]
 license = "MIT OR Apache-2.0"
-description = "Convert struct into/from tuple (of references) - recursive, ignore fields"
+description = "Convert structs and enums into tuples (of refs) and back - recursive, ignore fields"
 repository = "https://github.com/dekirisu/intuple/"
-keywords = ["tuple","struct","into","from","recursive"]
+keywords = ["tuple","struct","enum","into","from"]
 categories = ["rust-patterns"]
 
 [dependencies]
