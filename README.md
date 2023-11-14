@@ -93,7 +93,7 @@ struct Recursive {a:u32, #[recursive] b:Struct, c:u32}
 fn main(){
     let rcsv: Recursive = (9,(3,2,1),8).into(); 
     // => Recursive{a:9, b:Struct{a:3,b:2,c:1}, c:8}
-    let tuple: RecursiveIntuple = rcsv.into(); 
+    let tuple = rcsv.into_tuple(); 
     // => (9,(3,2,1),8)
 }
 ```
