@@ -91,10 +91,65 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         fn intuple_types_fn <F:Fn(&mut TokenStream2,Type,&Field)> (&self,func:F) -> TokenStream2;
         fn intuple_types (&self,) -> TypeOut;
         fn intuple_blocks <T:ToTokens,F:Fn(usize,&Field)->T> (&self,tup_offset:usize,func:F) -> (TypeOut,TokenStream2);
+        fn to_tuple<T:ToTokens,F:Fn(usize,&Field)->T> (&self,func:F) -> TokenStream2;
+        fn get_replace<T:ToTokens,F:Fn(usize,&Field)->T> (&self,func:F) -> TokenStream2;
+        fn get_len(&self) -> usize;
     }
+
+    use quote as qt;
+
+    fn field_index(id:usize,is_single:bool) -> TokenStream2 {
+        let tid = Index::from(id);
+        let mut tid = qt!{.#tid};
+        if is_single {tid = qt!{};}
+        tid
+    }
+
     impl IntupleFieldVec for Punctuated<Field,Comma> {
+
+        fn get_len(&self) -> usize {
+            self.iter().filter(|a|a.not_ignored()).count()
+        }
+
+        fn get_replace<T:ToTokens,F:Fn(usize,&Field)->T>(&self,func:F)->TokenStream2{
+            let mut asdf = qt!{};
+            let mut ttid: usize = 0;
+            let is_single = self.get_len() == 1;
+            for (pos,field) in self.iter().enumerate() {
+                if field.not_ignored() {
+                    let tid = field_index(ttid,is_single);
+                    let id = func(pos,field);
+                    asdf.extend(match (field.is_recursive(),field.is_recursive_enum()) {
+                        (true,_) | (_,true) => quote!{self.#id.replace_tuple(tup #tid);},
+                        _ => quote!{self.#id = tup #tid;},
+                    });
+                    ttid += 1;
+                }
+            }
+            asdf
+        }
+
+        fn to_tuple<T:ToTokens,F:Fn(usize,&Field)->T>(&self,func:F)->TokenStream2{
+            let mut asdf = qt!{};
+            let is_single = self.get_len() == 1;
+            for (pos,field) in self.iter().enumerate() {
+                if field.not_ignored() {
+                    let id = func(pos,field);
+                    asdf.extend(match (field.is_recursive(),field.is_recursive_enum()) {
+                        (true,_) | (_,true) => quote!{self.#id.to_tuple()},
+                        _ => quote!{self.#id.clone()},
+                    });
+                    if !is_single {
+                        asdf.extend(qt!{,});
+                    }
+                }
+            }
+            qt!{(#asdf)}
+        }
+
         fn intuple_tuple_map <T:ToTokens,F:Fn(usize,&Field)->T> (&self,func:F) -> (TokenStream2,TypeOut) {
             let mut left = quote![];
+            let is_single = self.get_len() == 1;
             for (pos,field) in self.iter().enumerate() {
                 let id = func(pos,field);
                 left = quote!{#left #id,};
@@ -104,34 +159,44 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 let id = func(pos,field);
                 if field.not_ignored() {
                     right.object.extend(match (field.is_recursive(),field.is_recursive_enum()) {
-                        (true,_) | (_,true) => quote!{#id.into(),},
-                        _ => quote!{#id,},
+                        (true,_) | (_,true) => quote!{#id.into()},
+                        _ => quote!{#id},
                     });
                     right.reference.extend(match (field.is_recursive(),field.is_recursive_enum()) {
-                        (true,_) => quote!{#id.as_tuple_ref(),},
-                        (_,true) => quote!{#id.as_tuple_enum_ref(),},
-                        _        => quote!{#id,},
+                        (true,_) => quote!{#id.as_tuple_ref()},
+                        (_,true) => quote!{#id.as_tuple_enum_ref()},
+                        _        => quote!{#id},
                     });
                     right.reference_mut.extend(match (field.is_recursive(),field.is_recursive_enum()) {
-                        (true,_) => quote!{#id.as_tuple_ref_mut(),},
-                        (_,true) => quote!{#id.as_tuple_enum_ref_mut(),},
-                        _        => quote!{#id,},
+                        (true,_) => quote!{#id.as_tuple_ref_mut()},
+                        (_,true) => quote!{#id.as_tuple_enum_ref_mut()},
+                        _        => quote!{#id},
                     });
-                }
+                    if !is_single{
+                        right.object.extend(qt!{,});
+                        right.reference.extend(qt!{,});
+                        right.reference_mut.extend(qt!{,});
+                    }
+                 }
             }
             (left,right)
         }
+
         fn intuple_types_fn <F:Fn(&mut TokenStream2,Type,&Field)> (&self,func:F) -> TokenStream2 {
             let mut out = quote!{};
+            let is_single = self.get_len() == 1;
             for field in self {
                 if field.not_ignored() {
                     let ty = field.ty.clone();
                     func(&mut out,ty,field);
-                    out.extend(quote!(,))
+                    if !is_single {
+                        out.extend(quote!(,))
+                    }
                 }
             }
             out
         }
+
         fn intuple_types (&self) -> TypeOut {
             let object = self.intuple_types_fn(|quote,ty,field|{
                 quote.extend( match (field.is_recursive(),field.is_recursive_enum()) {
@@ -159,13 +224,15 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
             let reference_mut = quote!{(#reference_mut)};
             TypeOut{object,reference,reference_mut}
         }
+
         fn intuple_blocks <T:ToTokens,F:Fn(usize,&Field)->T> (&self,mut tup_offset:usize,func:F) -> (TypeOut,TokenStream2){
             let mut dataty_tuple = TypeOut::default();
             let mut tuple_dataty = quote!{};
+            let is_single = self.get_len() == 1;
             for (position,field) in self.iter().enumerate() {
                 // Tuple Index
                 let tupid = if field.not_ignored() {
-                    let out:Index = tup_offset.into();
+                    let out = field_index(tup_offset,is_single);
                     tup_offset += 1;
                     Some(out)
                 } else {None};
@@ -173,25 +240,30 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 let fname = func(position,field);
                 if field.not_ignored() {
                     dataty_tuple.object.extend(match (field.is_recursive(),field.is_recursive_enum()) {
-                        (true,_) | (_,true) => quote!{dataty.#fname.into(),},
-                        _ => quote!{dataty.#fname,},
+                        (true,_) | (_,true) => quote!{dataty.#fname.into()},
+                        _ => quote!{dataty.#fname},
                     });
                     dataty_tuple.reference.extend(match (field.is_recursive(),field.is_recursive_enum()) {
-                        (true,_) => quote!{self.#fname.as_tuple_ref(),},
-                        (_,true) => quote!{self.#fname.as_tuple_enum_ref(),},
-                        _        => quote!{&self.#fname,},
+                        (true,_) => quote!{self.#fname.as_tuple_ref()},
+                        (_,true) => quote!{self.#fname.as_tuple_enum_ref()},
+                        _        => quote!{&self.#fname},
                     });
                     dataty_tuple.reference_mut.extend(match (field.is_recursive(),field.is_recursive_enum()) {
-                        (true,_) => quote!{self.#fname.as_tuple_ref_mut(),},
-                        (_,true) => quote!{self.#fname.as_tuple_enum_ref_mut(),},
-                        _        => quote!{&mut self.#fname,},
+                        (true,_) => quote!{self.#fname.as_tuple_ref_mut()},
+                        (_,true) => quote!{self.#fname.as_tuple_enum_ref_mut()},
+                        _        => quote!{&mut self.#fname},
                     });
+                    if !is_single{
+                        dataty_tuple.object.extend(qt!{,});
+                        dataty_tuple.reference.extend(qt!{,});
+                        dataty_tuple.reference_mut.extend(qt!{,});
+                    }
                 }
                 // Tuple -> Struct
                 let value = match tupid {
                     Some(id) => match (field.is_recursive(),field.is_recursive_enum()) {
-                        (true,_) | (_,true) => quote!{tuple.#id.into()},
-                        _ => quote!{tuple.#id},
+                        (true,_) | (_,true) => quote!{tuple #id.into()},
+                        _ => quote!{tuple #id},
                         
                     },
                     None => {
@@ -213,8 +285,16 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
 
     trait IntupleFields {
         fn intuple (&self) -> (TokenStream2,TypeOut,TypeOut);
+        fn to_tuple (&self) -> TokenStream2;
+        fn get_replace (&self) -> TokenStream2;
+        fn get_len(&self) -> usize;
     }
     impl IntupleFields for Fields {
+
+        fn get_len(&self) -> usize {
+            self.iter().filter(|a|a.not_ignored()).count()
+        }
+
         fn intuple (&self) -> (TokenStream2,TypeOut,TypeOut) {
             match &self {
                 /* ---------------------------------- Named --------------------------------- */
@@ -239,9 +319,101 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 )
             }
         }
+
+        fn get_replace (&self) -> TokenStream2 {
+            match &self {
+                Fields::Named(fields) => fields.named.get_replace(|_,field|field.ident()),
+                Fields::Unnamed(fields) => fields.unnamed.get_replace(|position,_|Index::from(position)),
+                _ => todo!{}
+            }
+        }
+
+        fn to_tuple (&self) -> TokenStream2 {
+            match &self {
+                Fields::Named(fields) => fields.named.to_tuple(|_,field|field.ident()),
+                Fields::Unnamed(fields) => fields.unnamed.to_tuple(|position,_|Index::from(position)),
+                _ => todo!{}
+            }
+        }
+
     }
 
 /* --------------------------------- Intuple -------------------------------- */
+
+    #[proc_macro_derive(ToIntuple, attributes(recursive,recursive_enum,ignore,igno,rcsv,rcsve,intuple))]
+    pub fn intuple_macro_derive2(input: TokenStream) -> TokenStream {
+        let ast = syn::parse(input).unwrap();
+        let mut a = impl_intuple_macro(&ast);
+        a.extend(impl_intuple_macro2(&ast));
+        a
+    }
+
+    fn impl_intuple_macro2(ast: &syn::DeriveInput) -> TokenStream {
+        let name = &ast.ident;
+        let (impl_generics, ty_generics, where_clause) = &ast.generics.split_for_impl();
+        match &ast.data {
+            Data::Struct(strct) => {
+                let to_tuple = strct.fields.to_tuple();
+                let q = quote! {
+                    impl #impl_generics ToIntuple for #name #ty_generics #where_clause {
+                        fn to_tuple(&self) -> Self::Tuple { #to_tuple }
+                    }
+                };
+                q.into()
+            }
+            _ => todo!{}
+        }
+    }
+
+//\\
+
+//    #[proc_macro_derive(ToIntupleWrap, attributes(recursive,recursive_enum,ignore,igno,rcsv,rcsve,intuple))]
+//    pub fn intuple_wrap_macro_derive(input: TokenStream) -> TokenStream {
+//        let ast = syn::parse(input).unwrap();
+//        impl_intuple_wrap_macro(&ast)
+//    }
+
+//    fn impl_intuple_wrap_macro(ast: &syn::DeriveInput) -> TokenStream {
+//        let name = &ast.ident;
+//        let (impl_generics, ty_generics, where_clause) = &ast.generics.split_for_impl();
+//        let mut generics_ref = ast.generics.clone();
+//        let lifetime = Lifetime::new("'intuple",Span::call_site());
+//        for a in generics_ref.type_params_mut() {
+//            a.bounds.push(TypeParamBound::Lifetime(lifetime.clone()));
+//        }
+//        generics_ref.params.push(GenericParam::Lifetime(LifetimeParam::new(lifetime)));
+//        let (ref_impl_generics,_,_) = &generics_ref.split_for_impl();
+//        
+//        match &ast.data {
+//            Data::Struct(strct) => {
+//                let q = quote! {
+//                    impl #impl_generics Intuple for #name #ty_generics #where_clause {
+//                        type Tuple = #tup_object;
+//                        fn from_tuple(item: #tup_object) -> Self{item.into()}
+//                        fn into_tuple(self) -> #tup_object {self.into()}
+//                        fn intuple(self) -> #tup_object {self.into()}
+//                        fn replace_tuple(&mut self,tup:Self::Tuple){ #replace }
+//                    }
+//                    impl #ref_impl_generics IntupleRef<'intuple> for #name #ty_generics #where_clause {
+//                        type Tuple = #tup_ref;
+//                        type TupleMut = #tup_refmut;
+//                        fn as_tuple_ref(&'intuple self) -> #tup_ref {#qi_ref}
+//                        fn as_tuple_ref_mut(&'intuple mut self) -> #tup_refmut {#qi_refmut}
+//                    }
+//                    impl #impl_generics From<#tup_object> for #name #ty_generics #where_clause {
+//                        fn from(tuple: #tup_object) -> Self { #qout_from }
+//                    }
+//                    impl #impl_generics From<#name #ty_generics> for #tup_object #where_clause {
+//                        fn from(dataty: #name #ty_generics) -> Self { #qi_object }
+//                    }
+//                };
+//                q.into()
+//            },
+//            _ => todo!{}
+//        }
+//    }
+ 
+//\\
 
     #[proc_macro_derive(Intuple, attributes(recursive,recursive_enum,ignore,igno,rcsv,rcsve,intuple))]
     pub fn intuple_macro_derive(input: TokenStream) -> TokenStream {
@@ -259,7 +431,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
         }
         generics_ref.params.push(GenericParam::Lifetime(LifetimeParam::new(lifetime)));
         let (ref_impl_generics,_,_) = &generics_ref.split_for_impl();
-        
+
         match &ast.data {
             Data::Struct(strct) => {
                 let (qout_from,qout_into,types) = strct.fields.intuple();
@@ -270,18 +442,20 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 let tup_object = types.object;
                 let tup_ref = types.reference;
                 let tup_refmut = types.reference_mut;
+                let replace = strct.fields.get_replace();
                 let q = quote! {
                     impl #impl_generics Intuple for #name #ty_generics #where_clause {
                         type Tuple = #tup_object;
-                        fn from_tuple(item: #tup_object) -> Self{item.into()}
-                        fn into_tuple(self) -> #tup_object {self.into()}
-                        fn intuple(self) -> #tup_object {self.into()}
+                        fn from_tuple(item:Self::Tuple) -> Self{item.into()}
+                        fn into_tuple(self) -> Self::Tuple {self.into()}
+                        fn intuple(self) -> Self::Tuple {self.into()}
+                        fn replace_tuple(&mut self,tup:Self::Tuple){ #replace }
                     }
                     impl #ref_impl_generics IntupleRef<'intuple> for #name #ty_generics #where_clause {
                         type Tuple = #tup_ref;
                         type TupleMut = #tup_refmut;
-                        fn as_tuple_ref(&'intuple self) -> #tup_ref {#qi_ref}
-                        fn as_tuple_ref_mut(&'intuple mut self) -> #tup_refmut {#qi_refmut}
+                        fn as_tuple_ref(&'intuple self) -> Self::Tuple {#qi_ref}
+                        fn as_tuple_ref_mut(&'intuple mut self) -> Self::TupleMut {#qi_refmut}
                     }
                     impl #impl_generics From<#tup_object> for #name #ty_generics #where_clause {
                         fn from(tuple: #tup_object) -> Self { #qout_from }
@@ -292,6 +466,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                 };
                 q.into()
             },
+
             Data::Enum(enm) => {
                 // Types
                 let mut tup_object = quote!{};
@@ -418,6 +593,7 @@ use syn::{__private::TokenStream2, *, punctuated::Punctuated, token::Comma};
                         fn from_tuple(item: #tup_object) -> Self{item.into()}
                         fn into_tuple(self) -> #tup_object {self.into()}
                         fn intuple(self) -> #tup_object {self.into()}
+                        fn replace_tuple(&mut self,tup:Self::Tuple){ todo!{} }
                     }
                     impl #ref_impl_generics IntupleRef<'intuple> for #name #ty_generics #where_clause {
                         type Tuple = #tup_ref;

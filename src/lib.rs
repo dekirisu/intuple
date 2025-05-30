@@ -2,10 +2,12 @@ pub use intuple_derive::*;
 
 pub trait Intuple {
     type Tuple:Sized;
-    fn from_tuple(item: Self::Tuple)->Self;
-    fn into_tuple(self)->Self::Tuple;
-    fn intuple(self)->Self::Tuple;
+    fn from_tuple(item: Self::Tuple) -> Self;
+    fn into_tuple(self) -> Self::Tuple;
+    fn intuple(self) -> Self::Tuple;
+    fn replace_tuple(&mut self,tup:Self::Tuple);
 }
+
 pub trait IntupleRef <'intuple> {
     type Tuple;
     type TupleMut;
@@ -13,11 +15,16 @@ pub trait IntupleRef <'intuple> {
     fn as_tuple_ref_mut(&'intuple mut self) -> Self::TupleMut;
 }
 
+pub trait ToIntuple: Intuple {
+    fn to_tuple(&self) -> Self::Tuple;
+}
+
 pub trait IntupleEnum {
     type Tuple:Sized;
     fn from_tuple_enum(item: Self::Tuple)->Self;
     fn into_tuple_enum(self)->Self::Tuple;
     fn intuple_enum(self)->Self::Tuple;
+    fn replace_tuple(&mut self,tup:Self::Tuple){todo!{}}
 }
 pub trait IntupleEnumRef <'intuple> {
     type Tuple;
